@@ -7,6 +7,7 @@ In search.py, you will implement generic search algorithms which are called by
 Pacman agents (in searchAgents.py).
 """
 
+from util import PriorityQueue
 import util
 
 class SearchProblem:
@@ -144,8 +145,24 @@ def nullHeuristic(state, problem=None):
 def aStarSearch(problem: SearchProblem, heuristic=nullHeuristic):
     """Search the node that has the lowest combined cost and heuristic first."""
     "*** YOUR CODE HERE ***"
-    util.raiseNotDefined()
+    frontier=PriorityQueue()
+    startState=problem.getStartState()
+    frontier.push((startState,[],0),0+heuristic(startState,problem))
+    explored=set()
 
+    while not frontier.isEmpty():
+        node, path, g = frontier.pop()
+        if problem.isGoalState(node):
+            return path
+        if node not in explored:
+            explored.add(node)
+            for neighbor,action,cost in problem.getSuccessors(node):
+                if neighbor not in explored:
+                    newG=g+cost
+                    newPath=path+[action]
+                    f=newG+heuristic(neighbor,problem)
+                    frontier.push((neighbor,newPath,newG), f)
+    return None
 
 # Abbreviations
 bfs = breadthFirstSearch
