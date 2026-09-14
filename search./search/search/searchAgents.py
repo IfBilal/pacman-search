@@ -24,6 +24,9 @@ description for details.
 Good luck and happy searching!
 """
 
+import game
+from inspect import _empty
+from search import breadthFirstSearch
 from typing import List, Tuple, Any
 from game import Directions
 from game import Agent
@@ -445,7 +448,15 @@ def foodHeuristic(state: Tuple[Tuple, List[List]], problem: FoodSearchProblem):
     """
     position, foodGrid = state
     "*** YOUR CODE HERE ***"
-    return 0
+    foodList=foodGrid.asList()
+    if not foodList:
+        return 0
+    distances=[]
+    for dot in foodList:
+        d=mazeDistance(position,dot,problem.startingGameState)
+        distances.append(d)
+    return max(distances)
+    
 
 class ClosestDotSearchAgent(SearchAgent):
     "Search for all food using a sequence of searches"
@@ -476,7 +487,8 @@ class ClosestDotSearchAgent(SearchAgent):
         problem = AnyFoodSearchProblem(gameState)
 
         "*** YOUR CODE HERE ***"
-        util.raiseNotDefined()
+        return breadthFirstSearch(problem)
+        
 
 class AnyFoodSearchProblem(PositionSearchProblem):
     """
@@ -510,9 +522,8 @@ class AnyFoodSearchProblem(PositionSearchProblem):
         complete the problem definition.
         """
         x,y = state
-
         "*** YOUR CODE HERE ***"
-        util.raiseNotDefined()
+        return self.food[x][y]
 
 def mazeDistance(point1: Tuple[int, int], point2: Tuple[int, int], gameState: pacman.GameState) -> int:
     """
