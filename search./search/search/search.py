@@ -9,6 +9,8 @@ Pacman agents (in searchAgents.py).
 
 from util import PriorityQueue
 import util
+import csv
+import os
 
 class SearchProblem:
     """
@@ -164,8 +166,76 @@ def aStarSearch(problem: SearchProblem, heuristic=nullHeuristic):
                     frontier.push((neighbor,newPath,newG), f)
     return None
 
+def _setup_csv_writer(filename):
+    """Create evidence/ dir and return (file_handle, csv.writer) for a trace log."""
+    os.makedirs('evidence', exist_ok=True)
+    f = open(os.path.join('evidence', filename), 'w', newline='')
+    w = csv.writer(f)
+    w.writerow(['iteration', 'expanded_state', 'parent', 'action',
+                'generated_successors', 'frontier_before', 'frontier_after',
+                'explored', 'g', 'h', 'f'])
+    return f, w
+
+
+def _frontier_states(pq):
+    """Return list of states currently in a PriorityQueue (for CSV logging)."""
+    return [entry[2][0] for entry in pq.heap]
+
+
+def greedyBestFirstSearch(problem: SearchProblem, heuristic=nullHeuristic):
+    """Search the node with the lowest heuristic value h(n) first."""
+    csv_file, writer = _setup_csv_writer('gbfs_trace.csv')
+
+    frontier = util.PriorityQueue()
+    start = problem.getStartState()
+    frontier.push((start, [], 0), heuristic(start, problem))
+
+    explored = set()
+    came_from = {start: (None, None)}
+    iteration = 0
+
+    while not frontier.isEmpty():
+        frontier_before = _frontier_states(frontier)
+        state, actions, g = frontier.pop()
+
+        if state in explored:
+            continue
+
+        explored.add(state)
+        h = heuristic(state, problem)
+        f = g + h
+        par_state, par_action = came_from.get(state, (None, None))
+
+        if problem.isGoalState(state):
+            writer.writerow([iteration, str(state), str(par_state), str(par_action),
+                             '[]', str(frontier_before), str(_frontier_states(frontier)),
+                             str(list(explored)), g, h, f])
+            csv_file.close()
+            return actions
+
+        successors = problem.getSuccessors(state)
+        successor_states = [s[0] for s in successors]
+
+        for successor, action, step_cost in successors:
+            if successor not in explored:
+                new_g = g + step_cost
+                new_h = heuristic(successor, problem)
+                frontier.push((successor, actions + [action], new_g), new_h)
+                if successor not in came_from:
+                    came_from[successor] = (state, action)
+
+        writer.writerow([iteration, str(state), str(par_state), str(par_action),
+                         str(successor_states), str(frontier_before),
+                         str(_frontier_states(frontier)), str(list(explored)), g, h, f])
+        iteration += 1
+
+    csv_file.close()
+    return []
+
+
 # Abbreviations
 bfs = breadthFirstSearch
 dfs = depthFirstSearch
 astar = aStarSearch
 ucs = uniformCostSearch
+gbfs = greedyBestFirstSearch
