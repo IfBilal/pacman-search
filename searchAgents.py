@@ -481,14 +481,63 @@ def foodHeuristic(state: Tuple[Tuple, List[List]], problem: FoodSearchProblem):
     """
     position, foodGrid = state
     "*** YOUR CODE HERE ***"
-    foodList=foodGrid.asList()
+    foodList = foodGrid.asList()
     if not foodList:
         return 0
-    distances=[]
-    for dot in foodList:
-        d=mazeDistance(position,dot,problem.startingGameState)
-        distances.append(d)
-    return max(distances)
+
+    # Pre-compute and cache all pairwise maze distances between food dots.
+    # This O(n^2) BFS work is done once; subsequent calls reuse the cache.
+    if 'dist_cache' not in problem.heuristicInfo:
+        allFood = problem.startingGameState.getFood().asList()
+        cache = {}
+        for i, f1 in enumerate(allFood):
+            for f2 in allFood[i + 1:]:
+                d = mazeDistance(f1, f2, problem.startingGameState)
+                cache[(f1, f2)] = d
+                cache[(f2, f1)] = d
+        problem.heuristicInfo['dist_cache'] = cache
+    cache = problem.heuristicInfo['dist_cache']
+
+    def cached_dist(a, b):
+        if a == b:
+            return 0
+        key = (a, b)
+        if key not in cache:
+            d = mazeDistance(a, b, problem.startingGameState)
+            cache[key] = d
+            cache[(b, a)] = d
+        return cache[key]
+
+    # Lower bound component 1: must reach the nearest unvisited food dot.
+    nearest = min(cached_dist(position, f) for f in foodList)
+
+    if len(foodList) == 1:
+        return nearest
+
+    # Lower bound component 2: Prim's MST over the unvisited food positions.
+    # The MST cost is a lower bound on the extra travel needed to connect all
+    # remaining food dots once we have reached the first one.
+    # Admissibility: any path visiting all food nodes spans a connected subgraph
+    # whose total edge weight is at least the MST weight.
+    # Consistency: moving one step changes nearest by at most 1 and cannot
+    # increase mst_cost, so h(n) - h(n') <= step cost = 1.
+    nodes = list(foodList)
+    in_mst = {nodes[0]}
+    mst_cost = 0
+    while len(in_mst) < len(nodes):
+        best = float('inf')
+        next_node = None
+        for n_in in in_mst:
+            for n_out in nodes:
+                if n_out not in in_mst:
+                    d = cached_dist(n_in, n_out)
+                    if d < best:
+                        best = d
+                        next_node = n_out
+        in_mst.add(next_node)
+        mst_cost += best
+
+    return nearest + mst_cost
     
 
 class ClosestDotSearchAgent(SearchAgent):
