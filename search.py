@@ -12,6 +12,9 @@ import util
 import csv
 import os
 
+# Set to False to suppress CSV trace logging (used internally by mazeDistance).
+_csv_logging_enabled = True
+
 class SearchProblem:
     """
     This class outlines the structure of a search problem, but doesn't implement
@@ -92,10 +95,10 @@ def depthFirstSearch(problem: SearchProblem):
         node,path = frontier.pop()
         if problem.isGoalState(node):
             par_state, par_action = came_from.get(node, (None, None))
-            writer.writerow([iteration, str(node), str(par_state), str(par_action),
-                             '[]', str(frontier_before), str(_frontier_list_states(frontier)),
-                             len(explored), len(path), 0, len(path)])
-            csv_file.close()
+            _write_row(writer, iteration, str(node), str(par_state), str(par_action),
+                       '[]', str(frontier_before), str(_frontier_list_states(frontier)),
+                       len(explored), len(path), 0, len(path))
+            _close(csv_file)
             return path
         if node not in explored:
             explored.add(node)
@@ -107,11 +110,11 @@ def depthFirstSearch(problem: SearchProblem):
                         frontier.push((neighbor,next_path))
                         if neighbor not in came_from:
                             came_from[neighbor] = (node, action)
-            writer.writerow([iteration, str(node), str(par_state), str(par_action),
-                             str([s[0] for s in successors]), str(frontier_before),
-                             str(_frontier_list_states(frontier)), len(explored), len(path), 0, len(path)])
+            _write_row(writer, iteration, str(node), str(par_state), str(par_action),
+                       str([s[0] for s in successors]), str(frontier_before),
+                       str(_frontier_list_states(frontier)), len(explored), len(path), 0, len(path))
             iteration += 1
-    csv_file.close()
+    _close(csv_file)
     return None
 
 
@@ -121,74 +124,97 @@ def breadthFirstSearch(problem: SearchProblem):
     from util import Queue
     csv_file, writer = _setup_csv_writer('bfs_trace.csv')
     frontier = Queue()
-    frontier.push((problem.getStartState(),[]))
+    startState = problem.getStartState()
+    frontier.push((startState, []))
+    frontier_set = {startState}      # tracks states currently in the frontier
     explored = set()
-    came_from = {problem.getStartState(): (None, None)}
+    came_from = {startState: (None, None)}
     iteration = 0
+
     while not frontier.isEmpty():
         frontier_before = _frontier_list_states(frontier)
-        node,path = frontier.pop()
+        node, path = frontier.pop()
+        frontier_set.discard(node)
+
         if problem.isGoalState(node):
             par_state, par_action = came_from.get(node, (None, None))
-            writer.writerow([iteration, str(node), str(par_state), str(par_action),
-                             '[]', str(frontier_before), str(_frontier_list_states(frontier)),
-                             len(explored), len(path), 0, len(path)])
-            csv_file.close()
+            _write_row(writer, iteration, str(node), str(par_state), str(par_action),
+                       '[]', str(frontier_before), str(_frontier_list_states(frontier)),
+                       len(explored), len(path), 0, len(path))
+            _close(csv_file)
             return path
+
         if node not in explored:
             explored.add(node)
             par_state, par_action = came_from.get(node, (None, None))
             successors = problem.getSuccessors(node)
-            for neighbor,action,cost in successors:
-                    if neighbor not in explored:
-                        next_path = path + [action]
-                        frontier.push((neighbor,next_path))
-                        if neighbor not in came_from:
-                            came_from[neighbor] = (node, action)
-            writer.writerow([iteration, str(node), str(par_state), str(par_action),
-                             str([s[0] for s in successors]), str(frontier_before),
-                             str(_frontier_list_states(frontier)), len(explored), len(path), 0, len(path)])
+            for neighbor, action, cost in successors:
+                # Only enqueue states not already explored or already in frontier.
+                if neighbor not in explored and neighbor not in frontier_set:
+                    frontier_set.add(neighbor)
+                    frontier.push((neighbor, path + [action]))
+                    if neighbor not in came_from:
+                        came_from[neighbor] = (node, action)
+            _write_row(writer, iteration, str(node), str(par_state), str(par_action),
+                       str([s[0] for s in successors]), str(frontier_before),
+                       str(_frontier_list_states(frontier)), len(explored), len(path), 0, len(path))
             iteration += 1
-    csv_file.close()
+
+    _close(csv_file)
     return None
 
 def uniformCostSearch(problem: SearchProblem):
     """Search the node of least total cost first."""
     "*** YOUR CODE HERE ***"
-    from util import PriorityQueue
     csv_file, writer = _setup_csv_writer('ucs_trace.csv')
     frontier = PriorityQueue()
-    frontier.push((problem.getStartState(),[]),0)
+    startState = problem.getStartState()
+    # Store only the state as the PQ item so frontier.update() can find it by equality.
+    frontier.push(startState, 0)
+
+    paths   = {startState: []}   # state -> cheapest path found so far
+    g_costs = {startState: 0}    # state -> cost of that path
     explored = set()
-    came_from = {problem.getStartState(): (None, None)}
+    came_from = {startState: (None, None)}
     iteration = 0
+
     while not frontier.isEmpty():
         frontier_before = _frontier_states(frontier)
-        node,path = frontier.pop()
-        g = problem.getCostOfActions(path)
+        node = frontier.pop()
+
+        if node in explored:
+            continue
+
+        path = paths[node]
+        g = g_costs[node]
+        explored.add(node)
+        par_state, par_action = came_from.get(node, (None, None))
+
         if problem.isGoalState(node):
-            par_state, par_action = came_from.get(node, (None, None))
-            writer.writerow([iteration, str(node), str(par_state), str(par_action),
-                             '[]', str(frontier_before), str(_frontier_states(frontier)),
-                             len(explored), g, 0, g])
-            csv_file.close()
+            _write_row(writer, iteration, str(node), str(par_state), str(par_action),
+                       '[]', str(frontier_before), str(_frontier_states(frontier)),
+                       len(explored), g, 0, g)
+            _close(csv_file)
             return path
-        if node not in explored:
-            explored.add(node)
-            par_state, par_action = came_from.get(node, (None, None))
-            successors = problem.getSuccessors(node)
-            for neighbor,action,cost in successors:
-                    if neighbor not in explored:
-                        next_path = path + [action]
-                        cost = problem.getCostOfActions(next_path)
-                        frontier.push((neighbor,next_path),cost)
-                        if neighbor not in came_from:
-                            came_from[neighbor] = (node, action)
-            writer.writerow([iteration, str(node), str(par_state), str(par_action),
-                             str([s[0] for s in successors]), str(frontier_before),
-                             str(_frontier_states(frontier)), len(explored), g, 0, g])
-            iteration += 1
-    csv_file.close()
+
+        successors = problem.getSuccessors(node)
+        for neighbor, action, cost in successors:
+            if neighbor not in explored:
+                new_cost = g + cost
+                # Update frontier only when a strictly cheaper path is found.
+                if neighbor not in g_costs or new_cost < g_costs[neighbor]:
+                    g_costs[neighbor] = new_cost
+                    paths[neighbor] = path + [action]
+                    frontier.update(neighbor, new_cost)
+                    if neighbor not in came_from:
+                        came_from[neighbor] = (node, action)
+
+        _write_row(writer, iteration, str(node), str(par_state), str(par_action),
+                   str([s[0] for s in successors]), str(frontier_before),
+                   str(_frontier_states(frontier)), len(explored), g, 0, g)
+        iteration += 1
+
+    _close(csv_file)
     return None
 
 
@@ -203,45 +229,65 @@ def aStarSearch(problem: SearchProblem, heuristic=nullHeuristic):
     """Search the node that has the lowest combined cost and heuristic first."""
     "*** YOUR CODE HERE ***"
     csv_file, writer = _setup_csv_writer('astar_trace.csv')
-    frontier=PriorityQueue()
-    startState=problem.getStartState()
-    frontier.push((startState,[],0),0+heuristic(startState,problem))
-    explored=set()
+    frontier = PriorityQueue()
+    startState = problem.getStartState()
+    h_start = heuristic(startState, problem)
+    # Store only the state as the PQ item so frontier.update() can find it by equality.
+    frontier.push(startState, h_start)
+
+    paths   = {startState: []}   # state -> best path found so far
+    g_costs = {startState: 0}    # state -> cost of that path
+    explored = set()
     came_from = {startState: (None, None)}
     iteration = 0
 
     while not frontier.isEmpty():
         frontier_before = [_state_repr(s) for s in _frontier_states(frontier)]
-        node, path, g = frontier.pop()
-        h = heuristic(node, problem)
-        if problem.isGoalState(node):
-            par_state, par_action = came_from.get(node, (None, None))
-            writer.writerow([iteration, str(_state_repr(node)), str(_state_repr(par_state)), str(par_action),
-                             '[]', str(frontier_before), str([_state_repr(s) for s in _frontier_states(frontier)]),
-                             len(explored), g, h, g + h])
-            csv_file.close()
+        state = frontier.pop()
+
+        if state in explored:
+            continue
+
+        path = paths[state]
+        g = g_costs[state]
+        explored.add(state)
+        h = heuristic(state, problem)
+        par_state, par_action = came_from.get(state, (None, None))
+
+        if problem.isGoalState(state):
+            _write_row(writer, iteration, str(_state_repr(state)), str(_state_repr(par_state)), str(par_action),
+                       '[]', str(frontier_before), str([_state_repr(s) for s in _frontier_states(frontier)]),
+                       len(explored), g, h, g + h)
+            _close(csv_file)
             return path
-        if node not in explored:
-            explored.add(node)
-            par_state, par_action = came_from.get(node, (None, None))
-            successors = problem.getSuccessors(node)
-            for neighbor,action,cost in successors:
-                if neighbor not in explored:
-                    newG=g+cost
-                    newPath=path+[action]
-                    f=newG+heuristic(neighbor,problem)
-                    frontier.push((neighbor,newPath,newG), f)
+
+        successors = problem.getSuccessors(state)
+        for neighbor, action, cost in successors:
+            if neighbor not in explored:
+                new_g = g + cost
+                # Update frontier only when a strictly cheaper f(n) path is found.
+                if neighbor not in g_costs or new_g < g_costs[neighbor]:
+                    g_costs[neighbor] = new_g
+                    paths[neighbor] = path + [action]
+                    f = new_g + heuristic(neighbor, problem)
+                    frontier.update(neighbor, f)
                     if neighbor not in came_from:
-                        came_from[neighbor] = (node, action)
-            writer.writerow([iteration, str(_state_repr(node)), str(_state_repr(par_state)), str(par_action),
-                             str([_state_repr(s[0]) for s in successors]), str(frontier_before),
-                             str([_state_repr(s) for s in _frontier_states(frontier)]), len(explored), g, h, g + h])
-            iteration += 1
-    csv_file.close()
+                        came_from[neighbor] = (state, action)
+
+        _write_row(writer, iteration, str(_state_repr(state)), str(_state_repr(par_state)), str(par_action),
+                   str([_state_repr(s[0]) for s in successors]), str(frontier_before),
+                   str([_state_repr(s) for s in _frontier_states(frontier)]), len(explored), g, h, g + h)
+        iteration += 1
+
+    _close(csv_file)
     return None
 
+
 def _setup_csv_writer(filename):
-    """Create evidence/ dir and return (file_handle, csv.writer) for a trace log."""
+    """Create evidence/ dir and return (file_handle, csv.writer) for a trace log.
+    Returns (None, None) when CSV logging is suppressed."""
+    if not _csv_logging_enabled:
+        return None, None
     os.makedirs('evidence', exist_ok=True)
     f = open(os.path.join('evidence', filename), 'w', newline='')
     w = csv.writer(f)
@@ -251,9 +297,22 @@ def _setup_csv_writer(filename):
     return f, w
 
 
+def _write_row(writer, *args):
+    """Write a CSV row only when logging is active."""
+    if writer is not None:
+        writer.writerow(args)
+
+
+def _close(f):
+    """Close the CSV file if it was opened."""
+    if f is not None:
+        f.close()
+
+
 def _frontier_states(pq):
-    """Return list of states currently in a PriorityQueue (for CSV logging)."""
-    return [entry[2][0] for entry in pq.heap]
+    """Return list of states currently in a PriorityQueue (for CSV logging).
+    Items stored in the PQ are states directly (not tuples)."""
+    return [entry[2] for entry in pq.heap]
 
 
 def _state_repr(state):
@@ -278,49 +337,58 @@ def greedyBestFirstSearch(problem: SearchProblem, heuristic=nullHeuristic):
     csv_file, writer = _setup_csv_writer('gbfs_trace.csv')
 
     frontier = util.PriorityQueue()
-    start = problem.getStartState()
-    frontier.push((start, [], 0), heuristic(start, problem))
+    startState = problem.getStartState()
+    h_start = heuristic(startState, problem)
+    # Store only the state as the PQ item so frontier.update() can find it by equality.
+    frontier.push(startState, h_start)
 
+    paths   = {startState: []}   # state -> path (tracked for CSV g logging)
+    g_costs = {startState: 0}    # state -> accumulated cost (for CSV only)
     explored = set()
-    came_from = {start: (None, None)}
+    came_from = {startState: (None, None)}
     iteration = 0
 
     while not frontier.isEmpty():
         frontier_before = _frontier_states(frontier)
-        state, actions, g = frontier.pop()
+        state = frontier.pop()
 
         if state in explored:
             continue
 
+        path = paths[state]
+        g = g_costs[state]
         explored.add(state)
         h = heuristic(state, problem)
-        f = g + h
         par_state, par_action = came_from.get(state, (None, None))
 
         if problem.isGoalState(state):
-            writer.writerow([iteration, str(state), str(par_state), str(par_action),
-                             '[]', str(frontier_before), str(_frontier_states(frontier)),
-                             str(list(explored)), g, h, f])
-            csv_file.close()
-            return actions
+            # f column for GBFS is h(n) — the only value used for prioritization.
+            _write_row(writer, iteration, str(state), str(par_state), str(par_action),
+                       '[]', str(frontier_before), str(_frontier_states(frontier)),
+                       len(explored), g, h, h)
+            _close(csv_file)
+            return path
 
         successors = problem.getSuccessors(state)
-        successor_states = [s[0] for s in successors]
-
         for successor, action, step_cost in successors:
             if successor not in explored:
                 new_g = g + step_cost
                 new_h = heuristic(successor, problem)
-                frontier.push((successor, actions + [action], new_g), new_h)
-                if successor not in came_from:
-                    came_from[successor] = (state, action)
+                # Use update() so the frontier holds at most one entry per state.
+                if successor not in g_costs or new_g < g_costs[successor]:
+                    g_costs[successor] = new_g
+                    paths[successor] = path + [action]
+                    frontier.update(successor, new_h)
+                    if successor not in came_from:
+                        came_from[successor] = (state, action)
 
-        writer.writerow([iteration, str(state), str(par_state), str(par_action),
-                         str(successor_states), str(frontier_before),
-                         str(_frontier_states(frontier)), str(list(explored)), g, h, f])
+        # f column for GBFS is h(n) — the only value used for prioritization.
+        _write_row(writer, iteration, str(state), str(par_state), str(par_action),
+                   str([s[0] for s in successors]), str(frontier_before),
+                   str(_frontier_states(frontier)), len(explored), g, h, h)
         iteration += 1
 
-    csv_file.close()
+    _close(csv_file)
     return []
 
 

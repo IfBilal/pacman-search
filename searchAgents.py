@@ -25,7 +25,6 @@ Good luck and happy searching!
 """
 
 import game
-from inspect import _empty
 from search import breadthFirstSearch
 from typing import List, Tuple, Any
 from game import Directions
@@ -575,4 +574,9 @@ def mazeDistance(point1: Tuple[int, int], point2: Tuple[int, int], gameState: pa
     assert not walls[x1][y1], 'point1 is a wall: ' + str(point1)
     assert not walls[x2][y2], 'point2 is a wall: ' + str(point2)
     prob = PositionSearchProblem(gameState, start=point1, goal=point2, warn=False, visualize=False)
-    return len(search.bfs(prob))
+    # Suppress CSV logging for internal BFS calls so they don't clobber evidence files.
+    _prev = search._csv_logging_enabled
+    search._csv_logging_enabled = False
+    result = len(search.bfs(prob))
+    search._csv_logging_enabled = _prev
+    return result
