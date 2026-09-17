@@ -81,61 +81,116 @@ def depthFirstSearch(problem: SearchProblem):
     """
     "*** YOUR CODE HERE ***"
     from util import Stack
+    csv_file, writer = _setup_csv_writer('dfs_trace.csv')
     frontier = Stack()
     frontier.push((problem.getStartState(),[]))
     explored = set()
+    came_from = {problem.getStartState(): (None, None)}
+    iteration = 0
     while not frontier.isEmpty():
+        frontier_before = _frontier_list_states(frontier)
         node,path = frontier.pop()
         if problem.isGoalState(node):
+            par_state, par_action = came_from.get(node, (None, None))
+            writer.writerow([iteration, str(node), str(par_state), str(par_action),
+                             '[]', str(frontier_before), str(_frontier_list_states(frontier)),
+                             len(explored), len(path), 0, len(path)])
+            csv_file.close()
             return path
         if node not in explored:
             explored.add(node)
-            for neighbor,action,cost in problem.getSuccessors(node):
+            par_state, par_action = came_from.get(node, (None, None))
+            successors = problem.getSuccessors(node)
+            for neighbor,action,cost in successors:
                     if neighbor not in explored:
                         next_path = path + [action]
                         frontier.push((neighbor,next_path))
+                        if neighbor not in came_from:
+                            came_from[neighbor] = (node, action)
+            writer.writerow([iteration, str(node), str(par_state), str(par_action),
+                             str([s[0] for s in successors]), str(frontier_before),
+                             str(_frontier_list_states(frontier)), len(explored), len(path), 0, len(path)])
+            iteration += 1
+    csv_file.close()
     return None
-    
+
 
 def breadthFirstSearch(problem: SearchProblem):
     """Search the shallowest nodes in the search tree first."""
     "*** YOUR CODE HERE ***"
-    from util import Queue 
+    from util import Queue
+    csv_file, writer = _setup_csv_writer('bfs_trace.csv')
     frontier = Queue()
     frontier.push((problem.getStartState(),[]))
     explored = set()
+    came_from = {problem.getStartState(): (None, None)}
+    iteration = 0
     while not frontier.isEmpty():
+        frontier_before = _frontier_list_states(frontier)
         node,path = frontier.pop()
         if problem.isGoalState(node):
+            par_state, par_action = came_from.get(node, (None, None))
+            writer.writerow([iteration, str(node), str(par_state), str(par_action),
+                             '[]', str(frontier_before), str(_frontier_list_states(frontier)),
+                             len(explored), len(path), 0, len(path)])
+            csv_file.close()
             return path
         if node not in explored:
             explored.add(node)
-            for neighbor,action,cost in problem.getSuccessors(node):
+            par_state, par_action = came_from.get(node, (None, None))
+            successors = problem.getSuccessors(node)
+            for neighbor,action,cost in successors:
                     if neighbor not in explored:
                         next_path = path + [action]
                         frontier.push((neighbor,next_path))
+                        if neighbor not in came_from:
+                            came_from[neighbor] = (node, action)
+            writer.writerow([iteration, str(node), str(par_state), str(par_action),
+                             str([s[0] for s in successors]), str(frontier_before),
+                             str(_frontier_list_states(frontier)), len(explored), len(path), 0, len(path)])
+            iteration += 1
+    csv_file.close()
     return None
 
 def uniformCostSearch(problem: SearchProblem):
     """Search the node of least total cost first."""
     "*** YOUR CODE HERE ***"
-    from util import PriorityQueue 
+    from util import PriorityQueue
+    csv_file, writer = _setup_csv_writer('ucs_trace.csv')
     frontier = PriorityQueue()
     frontier.push((problem.getStartState(),[]),0)
     explored = set()
+    came_from = {problem.getStartState(): (None, None)}
+    iteration = 0
     while not frontier.isEmpty():
+        frontier_before = _frontier_states(frontier)
         node,path = frontier.pop()
+        g = problem.getCostOfActions(path)
         if problem.isGoalState(node):
+            par_state, par_action = came_from.get(node, (None, None))
+            writer.writerow([iteration, str(node), str(par_state), str(par_action),
+                             '[]', str(frontier_before), str(_frontier_states(frontier)),
+                             len(explored), g, 0, g])
+            csv_file.close()
             return path
         if node not in explored:
             explored.add(node)
-            for neighbor,action,cost in problem.getSuccessors(node):
+            par_state, par_action = came_from.get(node, (None, None))
+            successors = problem.getSuccessors(node)
+            for neighbor,action,cost in successors:
                     if neighbor not in explored:
                         next_path = path + [action]
                         cost = problem.getCostOfActions(next_path)
                         frontier.push((neighbor,next_path),cost)
+                        if neighbor not in came_from:
+                            came_from[neighbor] = (node, action)
+            writer.writerow([iteration, str(node), str(par_state), str(par_action),
+                             str([s[0] for s in successors]), str(frontier_before),
+                             str(_frontier_states(frontier)), len(explored), g, 0, g])
+            iteration += 1
+    csv_file.close()
     return None
-    
+
 
 def nullHeuristic(state, problem=None):
     """
@@ -147,23 +202,42 @@ def nullHeuristic(state, problem=None):
 def aStarSearch(problem: SearchProblem, heuristic=nullHeuristic):
     """Search the node that has the lowest combined cost and heuristic first."""
     "*** YOUR CODE HERE ***"
+    csv_file, writer = _setup_csv_writer('astar_trace.csv')
     frontier=PriorityQueue()
     startState=problem.getStartState()
     frontier.push((startState,[],0),0+heuristic(startState,problem))
     explored=set()
+    came_from = {startState: (None, None)}
+    iteration = 0
 
     while not frontier.isEmpty():
+        frontier_before = [_state_repr(s) for s in _frontier_states(frontier)]
         node, path, g = frontier.pop()
+        h = heuristic(node, problem)
         if problem.isGoalState(node):
+            par_state, par_action = came_from.get(node, (None, None))
+            writer.writerow([iteration, str(_state_repr(node)), str(_state_repr(par_state)), str(par_action),
+                             '[]', str(frontier_before), str([_state_repr(s) for s in _frontier_states(frontier)]),
+                             len(explored), g, h, g + h])
+            csv_file.close()
             return path
         if node not in explored:
             explored.add(node)
-            for neighbor,action,cost in problem.getSuccessors(node):
+            par_state, par_action = came_from.get(node, (None, None))
+            successors = problem.getSuccessors(node)
+            for neighbor,action,cost in successors:
                 if neighbor not in explored:
                     newG=g+cost
                     newPath=path+[action]
                     f=newG+heuristic(neighbor,problem)
                     frontier.push((neighbor,newPath,newG), f)
+                    if neighbor not in came_from:
+                        came_from[neighbor] = (node, action)
+            writer.writerow([iteration, str(_state_repr(node)), str(_state_repr(par_state)), str(par_action),
+                             str([_state_repr(s[0]) for s in successors]), str(frontier_before),
+                             str([_state_repr(s) for s in _frontier_states(frontier)]), len(explored), g, h, g + h])
+            iteration += 1
+    csv_file.close()
     return None
 
 def _setup_csv_writer(filename):
@@ -180,6 +254,23 @@ def _setup_csv_writer(filename):
 def _frontier_states(pq):
     """Return list of states currently in a PriorityQueue (for CSV logging)."""
     return [entry[2][0] for entry in pq.heap]
+
+
+def _state_repr(state):
+    """
+    Compact CSV representation of a state. FoodSearchProblem states are
+    (position, foodGrid) pairs; writing the whole grid's ASCII string into
+    every CSV cell on every iteration is what made early food-search traces
+    balloon to 100+ MB, so we log just the position and remaining food count.
+    """
+    if isinstance(state, tuple) and len(state) == 2 and hasattr(state[1], 'count') and hasattr(state[1], 'asList'):
+        return (state[0], 'foodLeft=%d' % state[1].count())
+    return state
+
+
+def _frontier_list_states(frontier):
+    """Return list of states currently in a Stack/Queue (for CSV logging)."""
+    return [item[0] for item in frontier.list]
 
 
 def greedyBestFirstSearch(problem: SearchProblem, heuristic=nullHeuristic):
